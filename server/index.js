@@ -10,7 +10,6 @@ const http = require('http');
 const SocketIO = require('socket.io');
 
 
-
 /**
  * Get port from environment and store in Express.
  */
@@ -26,33 +25,6 @@ const server = http.createServer(app);
 let io = new SocketIO(server);
 
 io.on('connection', (socket) => {
-
-  console.log('user connected');
-  socket.on('disconnect', () => {
-    console.log('user disconnected');
-  });
-
-
-  socket.on('error', (error) => {
-    console.log(error);
-  });
-
-  socket.on('place-bid', (bidData) => {
-    socket.broadcast.emit('update-bid', bidData)
-  });
-
-
-  socket.on('update-sold-player', (playerData) => {
-    socket.broadcast.emit('update-sold-player-client', playerData)
-  })
-
-  socket.on('sell-player', (playerData) => {
-    socket.broadcast.emit('sell-player-client', playerData)
-  })
-
-  socket.on('mark-player-unsold', (playerData) => {
-    socket.broadcast.emit('mark-player-unsold-client', playerData)
-  })
 
 });
 
