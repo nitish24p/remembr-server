@@ -25,7 +25,9 @@ const server = http.createServer(app);
 let io = new SocketIO(server);
 
 io.on('connection', (socket) => {
-
+  console.log("got a new connection")
+  console.log(socket.id);
+  console.log(socket.rooms);
 });
 
 
