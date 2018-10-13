@@ -1,8 +1,10 @@
 //import newrelic from 'newrelic';
-import express from 'express';
-import bodyParser from 'body-parser';
-import morgan from 'morgan';
-import path from 'path';
+const express = require('express');
+const bodyParser = require('body-parser');
+const morgan = require('morgan');
+const path = require('path');
+
+const app = express();
 
 app.use(morgan('dev'));
 app.use(bodyParser.json());
@@ -62,5 +64,5 @@ app.use((req, res, next) => {
 
 
 
-export { app };
+module.exports = app;
 
