@@ -24,12 +24,85 @@ app.set('port', port);
 const server = http.createServer(app);
 let io = new SocketIO(server);
 
+var firstClient = '';
+
+var playersInRooms = {};
+
 io.on('connection', (socket) => {
-  console.log("got a new connection")
+  console.log("got a new connection");
   console.log(socket.id);
-  console.log(socket.rooms);
+
+  socket.on('disconnect', (reason) => {
+    console.log('disconnect reason: ', reason);
+  });
+
+  socket.on('room', (room) => {
+    console.log(process.common.getJSONObject(room));
+    if (!room.roomId || !room.alias) {
+      console.log('missing info');
+      socket.disconnect(true);
+      return;
+    }
+    var roomId = room.roomId;
+    //  todo validate the room
+    console.log(`client wants to join room ${roomId}`);
+
+    io.in(roomId).clients((err, clients) => {
+
+      if (err) {
+        console.log('error in getting clients: ', err);
+        socket.disconnect(true);
+        return;
+      }
+
+      if (clients.length >= maxPlayers) {
+        console.log(`max players allowed is ${maxPlayers}`);
+        socket.disconnect(true);
+        return;
+      }
+
+      socket.join(roomId, () => {
+        console.log(`client added to room ${roomId}, socket id is ${socket.id}`);
+        console.log('socket client id: ', socket.client.id);
+
+        //  if it's the first guy
+        if (clients.length == 0) {
+          firstClient = socket.client.id;
+        }
+
+        playersInRooms[roomId] = playersInRooms[roomId] || {};
+        playersInRooms[roomId].players = playersInRooms[roomId].players || [];
+        playersInRooms[roomId].players.push(room.alias);
+
+        console.log(`players in room ${roomId}: ${playersInRooms[roomId].players}`);
+  
+        //  if all guys are in the room
+        if (clients.length == maxPlayers - 1) {
+          playersInRooms[roomId]['bookie'] = firstClient;
+          console.log(`max players joined: ${JSON.stringify(playersInRooms[roomId])}`);
+          io.sockets.in(roomId).emit('joint', playersInRooms[roomId]);
+        }
+
+      });
+    });
+  });
+
+  socket.on('message', messageHandler);
 });
 
+var maxPlayers = 2;
+
+var messageHandler = function (message) {
+  console.log(`message from socket ${message}`);
+};
+
+
+
+var getClientsInRoom = function (roomId, callback) {
+  io.in(roomId).clients(callback);
+};
+
+var maxPlayers = 2;  //  todo put this number in config
 
 /**
  * Listen on provided port, on all network interfaces.
