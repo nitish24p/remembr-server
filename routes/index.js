@@ -17,6 +17,7 @@ router.post('/createRoom', (req, res) => {
         roomId = otpGenerator.generate(6, otpConfig);
     } while (rooms.includes(roomId));
     rooms.push(roomId);
+    res.status(200).send({'room_id' : roomId});
 });
 
 router.get('/', (req, res) => {
