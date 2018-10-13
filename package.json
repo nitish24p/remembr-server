@@ -1,0 +1,14 @@
+{
+  "name": "remembr-server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "NitishPhanse <nitsums@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "body-parser": "^1.18.3",
+    "express": "^4.16.3",
+    "morgan": "^1.9.1",
+    "socket.io": "^2.1.1",
+    "socket.io-client": "^2.1.1"
+  }
+}
