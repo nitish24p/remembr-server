@@ -3,6 +3,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const morgan = require('morgan');
 const path = require('path');
+const router = require('../routes');
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use(function (req, res, next) {
   next();
 });
 
+app.use('/', router);
 
 // catch 404 and forward to error handler
 app.use((req, res, next) => {
@@ -33,7 +35,6 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).send({ status: err.status ? `${err.status}` : 500, message: err.message })
   next(err);
 });
-
 /**
 * This function is used to get a valid json object while parsing objects
 **/
