@@ -9,7 +9,7 @@ const debug = require('debug')('remembr');
 const http = require('http');
 const SocketIO = require('socket.io');
 const Game = require('./game');
-
+const Logger = require('./logger');
 
 /**
  * Get port from environment and store in Express.
@@ -28,17 +28,17 @@ let io = new SocketIO(server);
 const gameRooms = {};
 
 io.on('connection', (socket) => {
-  console.log("got a new connection");
-  console.log(socket.id);
+  Logger.log("got a new connection");
+  Logger.log(socket.id);
 
   socket.on('disconnect', (reason) => {
-    console.log('disconnect reason: ', reason);
+    Logger.log('disconnect reason: ', reason);
   });
 
   socket.on('disconnecting', (blah) => {
-    console.log(socket.client.id);
-    console.log("DISCONNECT YO")
-    // console.log(socket.client.sockets[socket.client.id].rooms);
+    Logger.log(socket.client.id);
+    Logger.log("DISCONNECT YO")
+    // Logger.log(socket.client.sockets[socket.client.id].rooms);
     let roomId
     Object.keys(socket.client.sockets[socket.client.id].rooms).forEach(room => {
       if (room !== socket.client.id) {
@@ -58,28 +58,28 @@ io.on('connection', (socket) => {
   })
 
   socket.on('room', (room) => {
-    console.log("CONNNECTING YO")
-    console.log(process.common.getJSONObject(room));
+    Logger.log("CONNNECTING YO")
+    Logger.log(process.common.getJSONObject(room));
     if (!room.roomId || !room.alias) {
-      console.log('missing info');
+      Logger.log('missing info');
       socket.disconnect(true);
       return;
     }
     const roomId = room.roomId;
     //  todo validate the room
-    console.log(`client wants to join room ${roomId}`);
+    Logger.log(`client wants to join room ${roomId}`);
 
     io.in(roomId).clients((err, clients) => {
       const playerToJoin = {};
 
       if (err) {
-        console.log('error in getting clients: ', err);
+        Logger.log('error in getting clients: ', err);
         socket.disconnect(true);
         return;
       }
 
       if (clients.length >= maxPlayers) {
-        console.log(`max players allowed is ${maxPlayers}`);
+        Logger.log(`max players allowed is ${maxPlayers}`);
         socket.disconnect(true);
         // emmit a message cant join
         return;
@@ -115,7 +115,7 @@ io.on('connection', (socket) => {
     gameRooms[roomId].gameStarted = true;
     
     io.sockets.in(roomId).emit('game started', gameRooms[roomId]);
-    console.log("STARTING", gameRooms[roomId]);
+    Logger.log("STARTING", gameRooms[roomId]);
   });
 
   socket.on('match', (data) => {
@@ -130,6 +130,7 @@ io.on('connection', (socket) => {
       
       if (!gameRooms[roomId].board[card.rowIndex][card.columnIndex].isMatched) {
         gameRooms[roomId].board[card.rowIndex][card.columnIndex].isMatched = true;
+        gameRooms[roomId].board[card.rowIndex][card.columnIndex].isOpen = true;
         gameRooms[roomId].players.forEach(player => {
           if (player.id === clientId) {
             player.score += (10 * gameRooms[roomId].level)
