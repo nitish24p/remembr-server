@@ -9,16 +9,26 @@ const otpConfig = {
 
 const router = express.Router();
 
-var rooms = [];
+const rooms = [];
 
 router.post('/createRoom', (req, res) => {
-    var roomId = '';
+    let roomId = '';
     do {
         roomId = otpGenerator.generate(6, otpConfig);
     } while (rooms.includes(roomId));
     rooms.push(roomId);
     res.status(200).send({'room_id' : roomId});
 });
+
+router.post('/join', (req, res) => {
+  let doesCodeExist = false;
+  const { roomId } = req.body;
+  if (rooms.includes(roomId)) {
+    doesCodeExist = true
+  }
+
+  res.send({status: doesCodeExist});
+})
 
 router.get('/', (req, res) => {
     res.send("ok");

@@ -8,6 +8,7 @@ const debug = require('debug')('remembr');
 
 const http = require('http');
 const SocketIO = require('socket.io');
+const Game = require('./game');
 
 
 /**
@@ -24,9 +25,7 @@ app.set('port', port);
 const server = http.createServer(app);
 let io = new SocketIO(server);
 
-var firstClient = '';
-
-var playersInRooms = {};
+const gameRooms = {};
 
 io.on('connection', (socket) => {
   console.log("got a new connection");
@@ -36,18 +35,42 @@ io.on('connection', (socket) => {
     console.log('disconnect reason: ', reason);
   });
 
+  socket.on('disconnecting', (blah) => {
+    console.log(socket.client.id);
+    console.log("DISCONNECT YO")
+    // console.log(socket.client.sockets[socket.client.id].rooms);
+    let roomId
+    Object.keys(socket.client.sockets[socket.client.id].rooms).forEach(room => {
+      if (room !== socket.client.id) {
+        roomId = room
+      }
+    });
+
+    if (gameRooms[roomId]) {
+      gameRooms[roomId].players = gameRooms[roomId].players.filter(player => {
+        return player.id !== socket.client.id
+      });
+    }
+
+    const rooms = Object.keys(socket.rooms);
+    socket.to(roomId).emit('user left', socket.client.id + ' left');
+    
+  })
+
   socket.on('room', (room) => {
+    console.log("CONNNECTING YO")
     console.log(process.common.getJSONObject(room));
     if (!room.roomId || !room.alias) {
       console.log('missing info');
       socket.disconnect(true);
       return;
     }
-    var roomId = room.roomId;
+    const roomId = room.roomId;
     //  todo validate the room
     console.log(`client wants to join room ${roomId}`);
 
     io.in(roomId).clients((err, clients) => {
+      const playerToJoin = {};
 
       if (err) {
         console.log('error in getting clients: ', err);
@@ -58,51 +81,97 @@ io.on('connection', (socket) => {
       if (clients.length >= maxPlayers) {
         console.log(`max players allowed is ${maxPlayers}`);
         socket.disconnect(true);
+        // emmit a message cant join
         return;
       }
 
       socket.join(roomId, () => {
-        console.log(`client added to room ${roomId}, socket id is ${socket.id}`);
-        console.log('socket client id: ', socket.client.id);
-
+        playerToJoin.id = socket.client.id;
+        playerToJoin.score = 0;
         //  if it's the first guy
-        if (clients.length == 0) {
-          firstClient = socket.client.id;
+        if (clients.length === 0 || (clients.length === 1 && gameRooms[roomId].players.some(client => !client.isOwner))) {
+          playerToJoin.isOwner = true; 
         }
 
-        playersInRooms[roomId] = playersInRooms[roomId] || {};
-        playersInRooms[roomId].players = playersInRooms[roomId].players || [];
-        playersInRooms[roomId].players.push(room.alias);
+        gameRooms[roomId] = gameRooms[roomId] || {};
+        gameRooms[roomId].players = gameRooms[roomId].players || [];
+        gameRooms[roomId].players.push(playerToJoin);
 
-        console.log(`players in room ${roomId}: ${playersInRooms[roomId].players}`);
-  
         //  if all guys are in the room
         if (clients.length == maxPlayers - 1) {
-          playersInRooms[roomId]['bookie'] = firstClient;
-          console.log(`max players joined: ${JSON.stringify(playersInRooms[roomId])}`);
-          io.sockets.in(roomId).emit('joint', playersInRooms[roomId]);
+          //gameRooms[roomId]['bookie'] = firstClient;
+          io.sockets.in(roomId).emit('joint', gameRooms[roomId]);
         }
 
       });
     });
   });
 
-  socket.on('message', messageHandler);
+  socket.on('start', (data) => {
+    const startingLevel = 1
+    const { roomId } = data;
+    gameRooms[roomId].level = startingLevel;
+    gameRooms[roomId].board = Game.createNewBoard(startingLevel);
+    gameRooms[roomId].gameStarted = true;
+    
+    io.sockets.in(roomId).emit('game started', gameRooms[roomId]);
+    console.log("STARTING", gameRooms[roomId]);
+  });
+
+  socket.on('match', (data) => {
+    const { roomId, clickedCards, level } = data;
+    const clientId = socket.client.id;
+    const game = gameRooms[roomId];
+    const opponent = gameRooms[roomId].players.find(player => player.id !== clientId);
+    if (level !== gameRooms[roomId].level) {
+      return;
+    }
+    clickedCards.forEach(card => {
+      
+      if (!gameRooms[roomId].board[card.rowIndex][card.columnIndex].isMatched) {
+        gameRooms[roomId].board[card.rowIndex][card.columnIndex].isMatched = true;
+        gameRooms[roomId].players.forEach(player => {
+          if (player.id === clientId) {
+            player.score += (10 * gameRooms[roomId].level)
+          }
+        })
+      }
+      card.hide = true;
+      
+    })
+    io.to(opponent.id).emit('update', { cards: clickedCards });
+    io.sockets.in(roomId).emit('score updated', {players: gameRooms[roomId].players});
+  })
+
+  socket.on('level up', (data) => {
+    const { roomId } = data;
+    const currentLevel = gameRooms[roomId].level;
+    gameRooms[roomId].level = currentLevel + 1;
+    setTimeout(() => {
+      gameRooms[roomId].board = Game.createNewBoard(currentLevel + 1);
+      io.sockets.in(roomId).emit('level updated', gameRooms[roomId]);
+    }, 500);
+    
+  })
+
+  socket.on('game over', (data) => {
+    const { roomId } = data;
+    setTimeout(() => {
+      io.sockets.in(roomId).emit('game completed', gameRooms[roomId]);
+    }, 500);
+
+  })
+
+
 });
 
-var maxPlayers = 2;
-
-var messageHandler = function (message) {
-  console.log(`message from socket ${message}`);
-};
+const maxPlayers = 2;
 
 
-
-var getClientsInRoom = function (roomId, callback) {
+const getClientsInRoom = function (roomId, callback) {
   io.in(roomId).clients(callback);
 };
 
-var maxPlayers = 2;  //  todo put this number in config
 
 /**
  * Listen on provided port, on all network interfaces.
