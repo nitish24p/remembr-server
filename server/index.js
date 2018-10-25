@@ -120,6 +120,8 @@ io.on('connection', (socket) => {
 
   socket.on('match', (data) => {
     const { roomId, clickedCards, level } = data;
+    let tempCard = null;
+    let isMatched = false;
     const clientId = socket.client.id;
     const game = gameRooms[roomId];
     const opponent = gameRooms[roomId].players.find(player => player.id !== clientId);
@@ -127,31 +129,48 @@ io.on('connection', (socket) => {
       return;
     }
     clickedCards.forEach(card => {
+      card.hide = true;
+      if (!tempCard) {
+        tempCard = card;
+      }
       
-      if (!gameRooms[roomId].board[card.rowIndex][card.columnIndex].isMatched) {
+      else if ((gameRooms[roomId].board[tempCard.rowIndex][tempCard.columnIndex].value === 
+        gameRooms[roomId].board[card.rowIndex][card.columnIndex].value
+      ) && (!gameRooms[roomId].board[card.rowIndex][card.columnIndex].isMatched && 
+        !gameRooms[roomId].board[tempCard.rowIndex][tempCard.columnIndex].isMatched)) {
         gameRooms[roomId].board[card.rowIndex][card.columnIndex].isMatched = true;
         gameRooms[roomId].board[card.rowIndex][card.columnIndex].isOpen = true;
+        gameRooms[roomId].board[tempCard.rowIndex][tempCard.columnIndex].isMatched = true;
+        gameRooms[roomId].board[tempCard.rowIndex][tempCard.columnIndex].isOpen = true;
         gameRooms[roomId].players.forEach(player => {
           if (player.id === clientId) {
             player.score += (10 * gameRooms[roomId].level)
           }
         })
+        isMatched = true;
       }
-      card.hide = true;
+      
       
     })
-    io.to(opponent.id).emit('update', { cards: clickedCards });
-    io.sockets.in(roomId).emit('score updated', {players: gameRooms[roomId].players});
+    if (isMatched) {
+      io.to(opponent.id).emit('update', { cards: clickedCards });
+      io.sockets.in(roomId).emit('score updated', {players: gameRooms[roomId].players});
+    }
+    
   })
 
   socket.on('level up', (data) => {
     const { roomId } = data;
-    const currentLevel = gameRooms[roomId].level;
-    gameRooms[roomId].level = currentLevel + 1;
-    setTimeout(() => {
-      gameRooms[roomId].board = Game.createNewBoard(currentLevel + 1);
-      io.sockets.in(roomId).emit('level updated', gameRooms[roomId]);
-    }, 500);
+    const isLevelOver = gameRooms[roomId].board.every(cardRow => cardRow.every(card => card.isMatched));
+    if (isLevelOver) {
+      Logger.log('level up', 'current lievel', gameRooms[roomId].level);
+      const currentLevel = gameRooms[roomId].level;
+      gameRooms[roomId].level = currentLevel + 1;
+      setTimeout(() => {
+        gameRooms[roomId].board = Game.createNewBoard(currentLevel + 1);
+        io.sockets.in(roomId).emit('level updated', gameRooms[roomId]);
+      }, 500);
+    }
     
   })
 
